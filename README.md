@@ -1,6 +1,12 @@
 # OncoExtract: Clinical Abstraction Pipeline
 
-An end-to-end data pipeline for extracting structured clinical variables from oncology literature. Ingests abstracts from PubMed, cleans with PySpark, models with dbt, extracts clinical variables using BioGPT, and provides a human-in-the-loop (HITL) review interface via Streamlit.
+## The Problem
+
+In oncology drug development, clinical teams must manually review thousands of medical research papers to extract key data points -- cancer stage, treatment type, biomarkers tested, patient count. A single reviewer typically spends **8-10 minutes per abstract**, and with thousands of new publications each year, this manual process becomes a major bottleneck that slows down drug development timelines.
+
+## The Solution
+
+OncoExtract automates clinical variable extraction from oncology literature. The pipeline ingests ~5,000 nasopharyngeal carcinoma (NPC) abstracts from PubMed, uses AI to extract structured variables (TNM stage, treatment modality, biomarkers, sample size), and presents the results in a human-in-the-loop (HITL) review interface where a clinician can approve or correct each extraction in seconds instead of minutes -- reducing manual review workload by an estimated **95%**.
 
 ## Architecture
 
@@ -156,8 +162,8 @@ cp .env.example .env
 
 ### PySpark via Docker
 
-PySpark runs inside a `bitnami/spark:3.5` container -- no local Java or
-Hadoop installation required. The Spark master UI is available at
+PySpark runs inside an `apache/spark:3.5.6-python3` container -- no local
+Java or Hadoop installation required. The Spark master UI is available at
 `http://localhost:8080` when the stack is running.
 
 ```bash
