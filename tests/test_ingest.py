@@ -2,7 +2,6 @@
 
 from oncoextract.ingest.pubmed import _parse_pubmed_xml
 
-
 SAMPLE_XML = """<?xml version="1.0" ?>
 <!DOCTYPE PubmedArticleSet PUBLIC "-//NLM//DTD PubMedArticle, 1st January 2024//EN"
   "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_240101.dtd">

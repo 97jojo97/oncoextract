@@ -2,7 +2,7 @@
 
 import logging
 
-from dagster import asset, AssetExecutionContext, MaterializeResult, MetadataValue
+from dagster import AssetExecutionContext, MaterializeResult, MetadataValue, asset
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,25 @@ def raw_pubmed_abstracts(context: AssetExecutionContext) -> MaterializeResult:
     return MaterializeResult(
         metadata={
             "articles_ingested": MetadataValue.int(count),
+        }
+    )
+
+
+@asset(
+    group_name="ingestion",
+    deps=[raw_pubmed_abstracts],
+    description="Archive raw PubMed JSON to S3 with date-partitioned keys.",
+    kinds={"python", "s3"},
+)
+def s3_raw_archive(context: AssetExecutionContext) -> MaterializeResult:
+    from oncoextract.ingest.s3 import archive_to_s3
+
+    count = archive_to_s3()
+    context.log.info("Archived %d records to S3", count)
+
+    return MaterializeResult(
+        metadata={
+            "records_archived": MetadataValue.int(count),
         }
     )
 

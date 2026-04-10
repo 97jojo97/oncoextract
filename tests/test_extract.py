@@ -7,7 +7,6 @@ from oncoextract.ai.extract import (
     _rule_based_extraction,
 )
 
-
 SAMPLE_NPC_ABSTRACT = (
     "BACKGROUND: Nasopharyngeal carcinoma (NPC) is endemic in Southern China. "
     "This study enrolled 245 patients with Stage III NPC (T2N1M0). "

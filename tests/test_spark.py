@@ -1,6 +1,5 @@
 """Tests for the PySpark cleaning logic."""
 
-import pytest
 from oncoextract.spark.clean import normalize_text
 
 

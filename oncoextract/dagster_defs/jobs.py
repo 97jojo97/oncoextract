@@ -1,6 +1,6 @@
 """Dagster job definitions for OncoExtract."""
 
-from dagster import define_asset_job, AssetSelection
+from dagster import AssetSelection, define_asset_job
 
 ingest_and_clean_job = define_asset_job(
     name="ingest_and_clean",

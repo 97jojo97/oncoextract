@@ -9,6 +9,7 @@ flowchart LR
     subgraph ingestion [Layer 1: Data Engineering]
         A[PubMed API] -->|E-utilities| B[Ingestion Script]
         B -->|Raw JSON| C[(PostgreSQL<br/>raw_pubmed)]
+        C -->|boto3| S3[(AWS S3<br/>date-partitioned)]
         C -->|JDBC| D[PySpark Cleaning]
         D -->|Structured| E[(PostgreSQL<br/>cleaned_abstracts)]
     end
@@ -48,6 +49,7 @@ flowchart LR
 | AI Extraction | BioGPT (HuggingFace) | Clinical variable extraction |
 | Validation | Pydantic + custom metrics | Precision/recall/F1 per field |
 | HITL Review | Streamlit | Human review and correction interface |
+| Cloud Storage | AWS S3 | Raw data archival with date-partitioned keys |
 | Infrastructure | Docker Compose | Multi-container orchestration (Postgres + Spark) |
 
 ## Quick Start
