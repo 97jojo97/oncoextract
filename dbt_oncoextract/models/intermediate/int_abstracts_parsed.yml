@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: int_abstracts_parsed
+    description: "Abstracts enriched with biomarker flags and treatment modality detection."
+    columns:
+      - name: abstract_id
+        data_tests:
+          - not_null
+          - unique
+      - name: cancer_type
+        description: "Detected cancer subtype from MeSH terms"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - "Nasopharyngeal Carcinoma"
+                  - "Lung Cancer"
+                  - "Breast Cancer"
+                  - "Other/Unspecified"

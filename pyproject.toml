@@ -1,0 +1,45 @@
+[project]
+name = "oncoextract"
+version = "0.1.0"
+description = "Clinical abstraction pipeline for oncology literature"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyspark>=3.5",
+    "psycopg2-binary>=2.9",
+    "sqlalchemy>=2.0",
+    "requests>=2.31",
+    "python-dotenv>=1.0",
+    "dagster>=1.9",
+    "dagster-webserver>=1.9",
+    "dagster-postgres>=0.25",
+    "pydantic>=2.0",
+    "transformers>=4.40",
+    "torch>=2.2",
+    "accelerate>=0.30",
+    "streamlit>=1.35",
+    "dbt-postgres>=1.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.dagster]
+module_name = "oncoextract.dagster_defs"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,27 @@
+version: 2
+
+sources:
+  - name: public
+    schema: public
+    tables:
+      - name: cleaned_abstracts
+        description: "Cleaned PubMed abstracts produced by the PySpark cleaning job."
+        columns:
+          - name: pmid
+            description: "PubMed unique identifier"
+            data_tests:
+              - not_null
+              - unique
+          - name: abstract_text
+            description: "Cleaned abstract body text"
+          - name: pub_date
+            description: "Publication date"
+
+      - name: ai_extractions
+        description: "AI-extracted clinical variables from abstracts."
+        columns:
+          - name: pmid
+            description: "PubMed unique identifier"
+            data_tests:
+              - not_null
+              - unique

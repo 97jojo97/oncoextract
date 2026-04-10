@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: stg_pubmed_abstracts
+    description: "Staged and lightly transformed PubMed abstracts."
+    columns:
+      - name: abstract_id
+        description: "Surrogate key (same as pmid for now)"
+        data_tests:
+          - not_null
+          - unique
+      - name: pmid
+        data_tests:
+          - not_null
+      - name: abstract_text
+        data_tests:
+          - not_null
+      - name: abstract_length
+        description: "Character length of abstract text"

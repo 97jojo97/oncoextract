@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: mart_cancer_studies
+    description: "Aggregated study counts by year, cancer type, and journal with biomarker/treatment breakdowns."
+    columns:
+      - name: publication_year
+        data_tests:
+          - not_null
+      - name: cancer_type
+        data_tests:
+          - not_null
+      - name: study_count
+        description: "Number of studies in this group"
+
+  - name: mart_treatment_outcomes
+    description: "Treatment modality distribution and biomarker co-occurrence by year and cancer type."
+    columns:
+      - name: publication_year
+        data_tests:
+          - not_null
+      - name: cancer_type
+        data_tests:
+          - not_null
+      - name: total_abstracts
+        description: "Total abstracts in this group"

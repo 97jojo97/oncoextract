@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: oncoextract-postgres
+    environment:
+      POSTGRES_DB: oncoextract
+      POSTGRES_USER: oncoextract
+      POSTGRES_PASSWORD: oncoextract_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oncoextract"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  spark:
+    image: apache/spark:3.5.6-python3
+    container_name: oncoextract-spark
+    user: root
+    entrypoint: ["/bin/bash", "-c", "/opt/spark/sbin/start-master.sh && tail -f /dev/null"]
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    volumes:
+      - ./oncoextract:/app/oncoextract:ro
+      - ./spark-entrypoint.sh:/app/spark-entrypoint.sh:ro
+      - ./.env:/app/.env:ro
+
+  spark-worker:
+    image: apache/spark:3.5.6-python3
+    container_name: oncoextract-spark-worker
+    user: root
+    entrypoint: ["/bin/bash", "-c", "/opt/spark/sbin/start-worker.sh spark://spark:7077 && tail -f /dev/null"]
+    environment:
+      - SPARK_WORKER_MEMORY=4g
+      - SPARK_WORKER_CORES=2
+    depends_on:
+      - spark
+
+volumes:
+  pgdata:

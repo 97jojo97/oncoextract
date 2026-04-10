@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: oncoextract
+          POSTGRES_USER: oncoextract
+          POSTGRES_PASSWORD: oncoextract_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.10
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Lint with ruff
+        run: uv run ruff check .
+
+      - name: Run tests
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: oncoextract
+          POSTGRES_USER: oncoextract
+          POSTGRES_PASSWORD: oncoextract_dev
+        run: uv run pytest -v
+
+      - name: Initialize database schema
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGDATABASE: oncoextract
+          PGUSER: oncoextract
+          PGPASSWORD: oncoextract_dev
+        run: psql -f init.sql
+
+      - name: Run dbt build
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: oncoextract
+          POSTGRES_USER: oncoextract
+          POSTGRES_PASSWORD: oncoextract_dev
+        working-directory: dbt_oncoextract
+        run: |
+          uv run dbt deps --profiles-dir . --project-dir .
+          uv run dbt build --profiles-dir . --project-dir .
