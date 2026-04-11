@@ -21,6 +21,7 @@ CREATE INDEX idx_cleaned_mesh_terms ON cleaned_abstracts USING GIN (mesh_terms);
 CREATE TABLE IF NOT EXISTS ai_extractions (
     pmid TEXT PRIMARY KEY REFERENCES cleaned_abstracts(pmid),
     extracted_json JSONB NOT NULL,
+    original_extracted_json JSONB,
     confidence_score FLOAT,
     model_version TEXT NOT NULL,
     extracted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

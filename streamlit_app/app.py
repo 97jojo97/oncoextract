@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from oncoextract.ai.hitl_metrics import aggregate_field_accuracy, field_agreement, parse_jsonb
 from oncoextract.db.models import get_engine
 
 st.set_page_config(
@@ -28,6 +29,7 @@ def get_review_queue():
                 c.title,
                 c.abstract_text,
                 a.extracted_json,
+                a.original_extracted_json,
                 a.confidence_score,
                 a.human_verified,
                 a.reviewer_notes,
@@ -53,6 +55,17 @@ def get_dashboard_stats():
             "verified": verified or 0,
             "avg_confidence": float(avg_conf) if avg_conf else 0.0,
         }
+
+
+def get_verified_pairs_for_metrics():
+    """Rows where human reviewed and we have an AI snapshot to compare."""
+    with engine.connect() as conn:
+        return conn.execute(text("""
+            SELECT original_extracted_json, extracted_json
+            FROM ai_extractions
+            WHERE human_verified = true
+              AND original_extracted_json IS NOT NULL
+        """)).fetchall()
 
 
 def approve_extraction(pmid: str, notes: str = ""):
@@ -94,7 +107,10 @@ def update_extraction(pmid: str, updated_json: dict, notes: str = ""):
 
 
 # --- Sidebar navigation ---
-page = st.sidebar.radio("Navigation", ["Review Queue", "Dashboard"])
+page = st.sidebar.radio(
+    "Navigation",
+    ["Review Queue", "Dashboard", "Evaluation"],
+)
 
 if page == "Dashboard":
     st.title("OncoExtract Dashboard")
@@ -143,6 +159,66 @@ if page == "Dashboard":
         st.error(f"Could not connect to database: {e}")
         st.info("Make sure PostgreSQL is running: `docker compose up -d`")
 
+elif page == "Evaluation":
+    st.title("AI vs Human Evaluation")
+    st.markdown(
+        "Field-level **agreement rate** between the first AI output (`original_extracted_json`) "
+        "and the human-reviewed record (`extracted_json`). "
+        "Human labels are treated as reference after approval."
+    )
+    st.markdown("---")
+
+    try:
+        pairs = get_verified_pairs_for_metrics()
+        parsed = [
+            (parse_jsonb(o), parse_jsonb(f))
+            for o, f in pairs
+            if o is not None
+        ]
+
+        if not parsed:
+            st.warning(
+                "No reviewed rows with an AI snapshot yet. "
+                "Approve items in **Review Queue** (or run migration + backfill — see README). "
+                "New extractions store `original_extracted_json` automatically."
+            )
+        else:
+            st.metric("Reviewed pairs (with AI snapshot)", len(parsed))
+            acc = aggregate_field_accuracy(parsed)
+            st.subheader("Agreement rate by field")
+            st.caption("1.0 = AI matched human without edits; lower = more corrections needed.")
+
+            cols = st.columns(5)
+            field_labels = {
+                "tnm_stage": "TNM / stage",
+                "cancer_type": "Cancer type",
+                "treatment_modality": "Treatments",
+                "biomarkers": "Biomarkers",
+                "sample_size": "Sample size",
+            }
+            for i, (key, label) in enumerate(field_labels.items()):
+                with cols[i % 5]:
+                    v = acc.get(key, 0.0)
+                    st.metric(label, f"{100 * v:.1f}%")
+
+            st.markdown("---")
+            st.subheader("Sample disagreements (first 5)")
+            shown = 0
+            for orig, fin in parsed:
+                agree = field_agreement(orig, fin)
+                if all(agree.values()):
+                    continue
+                with st.expander(f"PMID — fields differ: {[k for k, v in agree.items() if not v]}"):
+                    st.json({"ai_original": orig, "human_final": fin, "per_field_match": agree})
+                shown += 1
+                if shown >= 5:
+                    break
+            if shown == 0:
+                st.info("No disagreements in sample — model matches human on reviewed rows.")
+
+    except Exception as e:
+        st.error(f"Could not load evaluation data: {e}")
+
 elif page == "Review Queue":
     st.title("Clinical Extraction Review")
     st.markdown("Review, approve, or correct AI-generated clinical variable extractions.")
@@ -168,14 +244,24 @@ elif page == "Review Queue":
 
     filtered = [
         r for r in rows
-        if (show_verified or not r[5])
-        and (r[4] or 0) >= min_confidence
+        if (show_verified or not r[6])
+        and (r[5] or 0) >= min_confidence
     ]
 
     st.write(f"Showing {len(filtered)} of {len(rows)} extractions")
 
     for row in filtered:
-        pmid, title, abstract_text, extracted_json, confidence, verified, notes, summary = row
+        (
+            pmid,
+            title,
+            abstract_text,
+            extracted_json,
+            _orig_json,
+            confidence,
+            verified,
+            notes,
+            summary,
+        ) = row
         extraction = (
             json.loads(extracted_json)
             if isinstance(extracted_json, str)

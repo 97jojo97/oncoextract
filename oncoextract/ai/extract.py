@@ -230,20 +230,28 @@ def run_extraction(use_gpu: bool = True) -> int:
     with engine.begin() as conn:
         for pmid, abstract_text in rows:
             extraction, confidence = extractor.extract(abstract_text)
+            payload = json.dumps(extraction)
             conn.execute(
                 text("""
                     INSERT INTO ai_extractions
-                        (pmid, extracted_json, confidence_score, model_version)
-                    VALUES (:pmid, :extracted_json, :confidence, :model_version)
+                        (pmid, extracted_json, original_extracted_json,
+                         confidence_score, model_version)
+                    VALUES (:pmid, :extracted_json, :original_json,
+                            :confidence, :model_version)
                     ON CONFLICT (pmid) DO UPDATE SET
-                        extracted_json = :extracted_json,
-                        confidence_score = :confidence,
-                        model_version = :model_version,
-                        extracted_at = NOW()
+                        extracted_json = EXCLUDED.extracted_json,
+                        confidence_score = EXCLUDED.confidence_score,
+                        model_version = EXCLUDED.model_version,
+                        extracted_at = NOW(),
+                        original_extracted_json = COALESCE(
+                            ai_extractions.original_extracted_json,
+                            EXCLUDED.original_extracted_json
+                        )
                 """),
                 {
                     "pmid": pmid,
-                    "extracted_json": json.dumps(extraction),
+                    "extracted_json": payload,
+                    "original_json": payload,
                     "confidence": confidence,
                     "model_version": MODEL_VERSION,
                 },

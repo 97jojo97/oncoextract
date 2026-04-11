@@ -58,6 +58,26 @@ flowchart LR
 | Cloud Storage | AWS S3 | Raw data archival with date-partitioned keys |
 | Infrastructure | Docker Compose | Multi-container orchestration (Postgres + Spark) |
 
+## Production deployment (scaling)
+
+This repo runs **locally** for development: Spark in Docker (`local[*]`), Postgres on `localhost`, and S3 via boto3 to a real AWS bucket.
+
+In production, the same components map cleanly to managed services:
+
+| Local / dev | Typical production choice |
+|:---|:---|
+| Docker Spark (`apache/spark`) | **Amazon EMR**, **Databricks**, or **GCP Dataproc** running the same PySpark JAR/notebook; JDBC URLs point at RDS/BigQuery instead of local Postgres |
+| PostgreSQL in Docker | **Amazon RDS for PostgreSQL**, **Cloud SQL**, or **Azure Database for PostgreSQL** |
+| Raw archive to S3 | Same pattern: partition keys `raw/pubmed/YYYY-MM-DD/{pmid}.json`; lifecycle rules for cost |
+| Dagster | **Dagster Cloud** or self-hosted on Kubernetes with per-asset run queues and retries |
+| Streamlit | **Streamlit Community Cloud**, container behind a load balancer, or internal VPN |
+
+The PySpark job does not depend on Hadoop on the laptop: it reads/writes **Postgres over JDBC**. Packaging that job as a **spark-submit** step on EMR or a **Databricks job** is the standard scale-up path; only cluster config and JDBC secrets change.
+
+## HITL evaluation
+
+The first model output is stored in `original_extracted_json`; after a reviewer approves (with or without edits), `extracted_json` holds the human-reviewed truth. The Streamlit **Evaluation** tab shows **field-level agreement rates** (AI vs human) for verified rows. Run `scripts/migrate_001_original_extracted_json.sql` once if your database was created before that column existed.
+
 ## Quick Start
 
 ### Prerequisites
@@ -111,6 +131,8 @@ uv run dbt docs serve --profiles-dir . --project-dir .
 uv run streamlit run streamlit_app/app.py
 ```
 
+Open **Review Queue** to approve or edit extractions; open **Evaluation** to see AI-vs-human agreement by field after reviews.
+
 ## Project Structure
 
 ```
@@ -148,7 +170,7 @@ oncoextract/
 |:---|:---|
 | `raw_pubmed` | Raw JSON from PubMed API |
 | `cleaned_abstracts` | Normalized text with GIN index on MeSH terms |
-| `ai_extractions` | Structured clinical variables + confidence scores |
+| `ai_extractions` | Structured clinical variables + confidence scores; `original_extracted_json` = first AI output for evaluation |
 | `generated_notes` | AI-generated clinical summaries |
 | `validation_runs` | Precision/recall/F1 metrics over time |
 
