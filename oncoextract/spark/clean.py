@@ -16,6 +16,8 @@ import subprocess
 import psycopg2
 from dotenv import load_dotenv
 from pyspark.sql import DataFrame, SparkSession
+
+from oncoextract.db.models import get_jdbc_url, postgres_sslmode
 from pyspark.sql import functions as F
 from pyspark.sql.types import StringType
 
@@ -74,12 +76,10 @@ def run_cleaning_in_docker() -> int:
 def read_raw_pubmed(spark: SparkSession) -> DataFrame:
     """Read raw_pubmed table from Postgres via JDBC."""
     host = os.getenv("POSTGRES_HOST", "localhost")
-    port = os.getenv("POSTGRES_PORT", "5432")
-    db = os.getenv("POSTGRES_DB", "oncoextract")
     user = os.getenv("POSTGRES_USER", "oncoextract")
     password = os.getenv("POSTGRES_PASSWORD", "oncoextract_dev")
 
-    jdbc_url = f"jdbc:postgresql://{host}:{port}/{db}"
+    jdbc_url = get_jdbc_url()
 
     return (
         spark.read
@@ -143,7 +143,14 @@ def _delete_existing_for_pmids(pmids: list[str]) -> None:
     db = os.getenv("POSTGRES_DB", "oncoextract")
     user = os.getenv("POSTGRES_USER", "oncoextract")
     password = os.getenv("POSTGRES_PASSWORD", "oncoextract_dev")
-    conn = psycopg2.connect(host=host, port=port, dbname=db, user=user, password=password)
+    conn = psycopg2.connect(
+        host=host,
+        port=port,
+        dbname=db,
+        user=user,
+        password=password,
+        sslmode=postgres_sslmode(),
+    )
     try:
         with conn.cursor() as cur:
             # Children reference cleaned_abstracts(pmid); delete in FK-safe order.
@@ -175,7 +182,9 @@ def write_cleaned(df: DataFrame) -> None:
     pmids = [r["pmid"] for r in df.select("pmid").distinct().collect()]
     _delete_existing_for_pmids(pmids)
 
-    jdbc_url = f"jdbc:postgresql://{host}:{port}/{db}?stringtype=unspecified"
+    base = get_jdbc_url()
+    sep = "&" if "?" in base else "?"
+    jdbc_url = f"{base}{sep}stringtype=unspecified"
 
     (
         df.write

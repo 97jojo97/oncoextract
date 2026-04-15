@@ -36,7 +36,9 @@ class PubMedClient:
         self._last_request_time = time.time()
 
     def _get(self, endpoint: str, params: dict[str, Any]) -> dict:
-        params["api_key"] = self.api_key
+        # Omit empty api_key — NCBI may return 400; unauthenticated tier still works (lower rate).
+        if self.api_key:
+            params["api_key"] = self.api_key
         params["retmode"] = "json"
         url = f"{BASE_URL}/{endpoint}"
 

@@ -9,6 +9,17 @@ from sqlalchemy.engine import Engine, URL, make_url
 load_dotenv()
 
 
+def postgres_sslmode() -> str:
+    """psycopg2 sslmode. Neon/RDS require TLS; local Docker Postgres usually has no SSL."""
+    override = os.getenv("POSTGRES_SSLMODE", "").strip()
+    if override:
+        return override
+    host = (os.getenv("POSTGRES_HOST") or "localhost").lower().strip()
+    if host in ("localhost", "127.0.0.1", "::1"):
+        return "disable"
+    return "require"
+
+
 def get_connection_url() -> URL:
     """Build a SQLAlchemy URL so special characters in the password stay valid."""
     for key in ("DATABASE_URL", "POSTGRES_URL"):
@@ -34,8 +45,15 @@ def get_jdbc_url() -> str:
     host = os.getenv("POSTGRES_HOST", "localhost")
     port = os.getenv("POSTGRES_PORT", "5432")
     db = os.getenv("POSTGRES_DB", "oncoextract")
-    return f"jdbc:postgresql://{host}:{port}/{db}"
+    base = f"jdbc:postgresql://{host}:{port}/{db}"
+    if postgres_sslmode() != "disable":
+        return f"{base}?sslmode={postgres_sslmode()}"
+    return base
 
 
 def get_engine() -> Engine:
-    return create_engine(get_connection_url())
+    url = get_connection_url()
+    # sslmode for Neon / managed Postgres (also fixes "connection is insecure").
+    return create_engine(url, connect_args={"sslmode": postgres_sslmode()})
+
+
