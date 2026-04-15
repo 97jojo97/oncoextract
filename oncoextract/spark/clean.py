@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 
+import psycopg2
 from dotenv import load_dotenv
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
@@ -133,6 +134,36 @@ def parse_and_clean(df: DataFrame) -> DataFrame:
     )
 
 
+def _delete_existing_for_pmids(pmids: list[str]) -> None:
+    """Remove dependent rows so JDBC append can replace cleaned rows on re-runs."""
+    if not pmids:
+        return
+    host = os.getenv("POSTGRES_HOST", "localhost")
+    port = os.getenv("POSTGRES_PORT", "5432")
+    db = os.getenv("POSTGRES_DB", "oncoextract")
+    user = os.getenv("POSTGRES_USER", "oncoextract")
+    password = os.getenv("POSTGRES_PASSWORD", "oncoextract_dev")
+    conn = psycopg2.connect(host=host, port=port, dbname=db, user=user, password=password)
+    try:
+        with conn.cursor() as cur:
+            # Children reference cleaned_abstracts(pmid); delete in FK-safe order.
+            cur.execute(
+                "DELETE FROM generated_notes WHERE pmid = ANY(%s::text[])",
+                (pmids,),
+            )
+            cur.execute(
+                "DELETE FROM ai_extractions WHERE pmid = ANY(%s::text[])",
+                (pmids,),
+            )
+            cur.execute(
+                "DELETE FROM cleaned_abstracts WHERE pmid = ANY(%s::text[])",
+                (pmids,),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def write_cleaned(df: DataFrame) -> None:
     """Write cleaned data back to Postgres."""
     host = os.getenv("POSTGRES_HOST", "localhost")
@@ -140,6 +171,9 @@ def write_cleaned(df: DataFrame) -> None:
     db = os.getenv("POSTGRES_DB", "oncoextract")
     user = os.getenv("POSTGRES_USER", "oncoextract")
     password = os.getenv("POSTGRES_PASSWORD", "oncoextract_dev")
+
+    pmids = [r["pmid"] for r in df.select("pmid").distinct().collect()]
+    _delete_existing_for_pmids(pmids)
 
     jdbc_url = f"jdbc:postgresql://{host}:{port}/{db}?stringtype=unspecified"
 

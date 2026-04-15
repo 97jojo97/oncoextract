@@ -25,6 +25,16 @@ services:
     ports:
       - "8080:8080"
       - "7077:7077"
+    environment:
+      # Must target the compose service name; host .env often has localhost and would break JDBC.
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: oncoextract
+      POSTGRES_USER: oncoextract
+      POSTGRES_PASSWORD: oncoextract_dev
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
       - ./oncoextract:/app/oncoextract:ro
       - ./spark-entrypoint.sh:/app/spark-entrypoint.sh:ro

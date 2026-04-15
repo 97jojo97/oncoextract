@@ -1,0 +1,6 @@
+# Minimal deps for Streamlit Community Cloud (streamlit_app + oncoextract db/hitl only).
+# Full pipeline: use `uv sync --all-extras` from pyproject.toml locally.
+streamlit>=1.35
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
+python-dotenv>=1.0

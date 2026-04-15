@@ -1,22 +1,89 @@
 """Streamlit HITL interface for reviewing AI extractions."""
 
 import json
+import os
 import sys
 from pathlib import Path
 
 import streamlit as st
-from sqlalchemy import text
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from oncoextract.ai.hitl_metrics import aggregate_field_accuracy, field_agreement, parse_jsonb
-from oncoextract.db.models import get_engine
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
 
 st.set_page_config(
     page_title="OncoExtract - Clinical Review",
     page_icon="🔬",
     layout="wide",
 )
+
+
+def _apply_streamlit_secrets() -> None:
+    """Copy Streamlit Cloud secrets into os.environ before DB modules load.
+
+    Streamlit stores values in ``st.secrets`` only; ``python-dotenv`` does not read them.
+    Supports either flat keys (``POSTGRES_HOST``, …), a single ``DATABASE_URL``, or a
+    nested table ``[postgres]`` with host, port, database, user, password.
+    """
+    try:
+        sec = st.secrets
+    except Exception:
+        return
+
+    if "DATABASE_URL" in sec:
+        os.environ["DATABASE_URL"] = str(sec["DATABASE_URL"])
+    if "POSTGRES_URL" in sec:
+        os.environ["POSTGRES_URL"] = str(sec["POSTGRES_URL"])
+
+    for block_name in ("postgres", "POSTGRES", "database"):
+        if block_name not in sec:
+            continue
+        pg = sec[block_name]
+        mapping = (
+            ("host", "POSTGRES_HOST"),
+            ("port", "POSTGRES_PORT"),
+            ("database", "POSTGRES_DB"),
+            ("dbname", "POSTGRES_DB"),
+            ("user", "POSTGRES_USER"),
+            ("username", "POSTGRES_USER"),
+            ("password", "POSTGRES_PASSWORD"),
+        )
+        for src, dst in mapping:
+            if src in pg:
+                os.environ[dst] = str(pg[src])
+        break
+
+    for key in (
+        "POSTGRES_HOST",
+        "POSTGRES_PORT",
+        "POSTGRES_DB",
+        "POSTGRES_USER",
+        "POSTGRES_PASSWORD",
+    ):
+        if key in sec:
+            os.environ[key] = str(sec[key])
+
+
+_apply_streamlit_secrets()
+
+
+def _db_troubleshoot_hint() -> str:
+    host = os.getenv("POSTGRES_HOST", "localhost")
+    if host in ("localhost", "127.0.0.1", "::1"):
+        return (
+            "On **Streamlit Community Cloud**, `localhost` is the app container, not your PC. "
+            "Use a **hosted** Postgres (Neon, Supabase, RDS, …) and set secrets: "
+            "`POSTGRES_HOST` (hostname), `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, "
+            "`POSTGRES_PASSWORD`, or a single `DATABASE_URL`. "
+            "Also ensure this app calls `_apply_streamlit_secrets()` **before** importing "
+            "`get_engine` (see `streamlit_app/app.py`)."
+        )
+    return "Make sure PostgreSQL is running: `docker compose up -d`"
+
+
+from sqlalchemy import text  # noqa: E402
+
+from oncoextract.ai.hitl_metrics import aggregate_field_accuracy, field_agreement, parse_jsonb  # noqa: E402
+from oncoextract.db.models import get_engine  # noqa: E402
 
 engine = get_engine()
 
@@ -157,7 +224,7 @@ if page == "Dashboard":
 
     except Exception as e:
         st.error(f"Could not connect to database: {e}")
-        st.info("Make sure PostgreSQL is running: `docker compose up -d`")
+        st.info(_db_troubleshoot_hint())
 
 elif page == "Evaluation":
     st.title("AI vs Human Evaluation")
@@ -228,7 +295,7 @@ elif page == "Review Queue":
         rows = get_review_queue()
     except Exception as e:
         st.error(f"Could not connect to database: {e}")
-        st.info("Make sure PostgreSQL is running: `docker compose up -d`")
+        st.info(_db_troubleshoot_hint())
         st.stop()
 
     if not rows:
