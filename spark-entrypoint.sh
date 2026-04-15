@@ -3,7 +3,7 @@
 # Called via: docker compose exec -T spark bash /app/spark-entrypoint.sh
 
 export PYTHONPATH="/opt/spark/python:/opt/spark/python/lib/py4j-0.10.9.7-src.zip:${PYTHONPATH}"
-export POSTGRES_HOST=postgres
+# DB host/user/password come from /app/.env (mounted). For local Docker Postgres use POSTGRES_HOST=postgres.
 
 pip install --quiet python-dotenv psycopg2-binary 2>/dev/null
 
