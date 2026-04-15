@@ -5,7 +5,7 @@
 export PYTHONPATH="/opt/spark/python:/opt/spark/python/lib/py4j-0.10.9.7-src.zip:${PYTHONPATH}"
 # DB host/user/password come from /app/.env (mounted). For local Docker Postgres use POSTGRES_HOST=postgres.
 
-pip install --quiet python-dotenv psycopg2-binary 2>/dev/null
+pip install --quiet python-dotenv psycopg2-binary sqlalchemy 2>/dev/null
 
 cd /app
 python3 -c "
