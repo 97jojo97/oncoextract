@@ -205,9 +205,27 @@ class ClinicalExtractor:
         return extraction, confidence
 
 
-def run_extraction(use_gpu: bool = True) -> int:
-    """Run extraction on all unprocessed cleaned abstracts."""
+def reset_ai_outputs(engine) -> None:
+    """Remove LLM outputs so extraction can rerun (e.g. switch rule-based → BioGPT)."""
+    logger.warning(
+        "Deleting all ai_extractions and generated_notes (including any HITL reviewer edits)."
+    )
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM generated_notes"))
+        conn.execute(text("DELETE FROM ai_extractions"))
+    logger.info("Removed all rows from generated_notes and ai_extractions")
+
+
+def run_extraction(use_gpu: bool = True, reset_ai_outputs_first: bool = False) -> int:
+    """Run extraction on all unprocessed cleaned abstracts.
+
+    If ``reset_ai_outputs_first`` is True, delete existing ``ai_extractions`` and
+    ``generated_notes`` first so every cleaned abstract is reprocessed (e.g. after fixing Torch).
+    """
     engine = get_engine()
+    if reset_ai_outputs_first:
+        reset_ai_outputs(engine)
+
     extractor = ClinicalExtractor(use_gpu=use_gpu)
 
     try:
@@ -265,6 +283,23 @@ def run_extraction(use_gpu: bool = True) -> int:
 
 
 if __name__ == "__main__":
+    import argparse
+
     logging.basicConfig(level=logging.INFO)
-    count = run_extraction()
+    parser = argparse.ArgumentParser(description="Clinical extraction (BioGPT + rule fallback)")
+    parser.add_argument(
+        "--reset-ai",
+        action="store_true",
+        help="Delete all ai_extractions and generated_notes, then re-extract everything",
+    )
+    parser.add_argument(
+        "--no-gpu",
+        action="store_true",
+        help="Force CPU even if CUDA is available",
+    )
+    args = parser.parse_args()
+    count = run_extraction(
+        use_gpu=not args.no_gpu,
+        reset_ai_outputs_first=args.reset_ai,
+    )
     print(f"Extracted variables from {count} abstracts")
