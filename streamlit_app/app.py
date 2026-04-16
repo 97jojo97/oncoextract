@@ -6,9 +6,11 @@ import sys
 from pathlib import Path
 
 import streamlit as st
+from dotenv import load_dotenv
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
+load_dotenv(_REPO_ROOT / ".env")
 
 st.set_page_config(
     page_title="OncoExtract - Clinical Review",
@@ -23,12 +25,26 @@ def _apply_streamlit_secrets() -> None:
     Streamlit stores values in ``st.secrets`` only; ``python-dotenv`` does not read them.
     Supports either flat keys (``POSTGRES_HOST``, …), a single ``DATABASE_URL``, or a
     nested table ``[postgres]`` with host, port, database, user, password.
+
+    Local runs have no ``secrets.toml``; ``in st.secrets`` raises — skip and use ``.env``.
     """
+    try:
+        from streamlit.errors import StreamlitSecretNotFoundError
+    except ImportError:
+        StreamlitSecretNotFoundError = type("StreamlitSecretNotFoundError", (Exception,), {})
+
     try:
         sec = st.secrets
     except Exception:
         return
 
+    try:
+        _copy_streamlit_secrets_to_environ(sec)
+    except StreamlitSecretNotFoundError:
+        return
+
+
+def _copy_streamlit_secrets_to_environ(sec: object) -> None:
     if "DATABASE_URL" in sec:
         os.environ["DATABASE_URL"] = str(sec["DATABASE_URL"])
     if "POSTGRES_URL" in sec:
