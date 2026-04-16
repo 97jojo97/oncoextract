@@ -169,13 +169,16 @@ class ClinicalExtractor:
         self.device = "cuda" if self._use_gpu and torch.cuda.is_available() else "cpu"
         logger.info("Loading %s on %s", MODEL_NAME, self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
         self.model = AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(self.device)
+        # Avoid passing max_new_tokens here: it clashes with tokenizer default max_length in
+        # generate() and spams warnings; pass max_new_tokens only on each call instead.
         self.generator = pipeline(
             "text-generation",
             model=self.model,
             tokenizer=self.tokenizer,
             device=0 if self.device == "cuda" else -1,
-            max_new_tokens=256,
         )
         logger.info("Model loaded successfully")
 
@@ -192,7 +195,12 @@ class ClinicalExtractor:
         if self.generator:
             try:
                 prompt = _build_extraction_prompt(abstract_text)
-                outputs = self.generator(prompt, do_sample=False)
+                outputs = self.generator(
+                    prompt,
+                    max_new_tokens=256,
+                    do_sample=False,
+                    pad_token_id=self.tokenizer.pad_token_id,
+                )
                 raw = outputs[0]["generated_text"][len(prompt):]
                 extraction = _parse_llm_output(raw, abstract_text)
             except Exception as e:
