@@ -10,7 +10,9 @@ from dotenv import load_dotenv
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
-load_dotenv(_REPO_ROOT / ".env")
+# Local dev: load .env first. Cloud has no .env; use override=False so Streamlit secrets
+# (applied next) always win for keys they set.
+load_dotenv(_REPO_ROOT / ".env", override=False)
 
 st.set_page_config(
     page_title="OncoExtract - Clinical Review",
@@ -50,23 +52,24 @@ def _copy_streamlit_secrets_to_environ(sec: object) -> None:
     if "POSTGRES_URL" in sec:
         os.environ["POSTGRES_URL"] = str(sec["POSTGRES_URL"])
 
-    for block_name in ("postgres", "POSTGRES", "database"):
+    _PG_BLOCK_NAMES = ("postgres", "POSTGRES", "database", "neon")
+    mapping = (
+        ("host", "POSTGRES_HOST"),
+        ("port", "POSTGRES_PORT"),
+        ("database", "POSTGRES_DB"),
+        ("dbname", "POSTGRES_DB"),
+        ("user", "POSTGRES_USER"),
+        ("username", "POSTGRES_USER"),
+        ("password", "POSTGRES_PASSWORD"),
+    )
+
+    for block_name in _PG_BLOCK_NAMES:
         if block_name not in sec:
             continue
         pg = sec[block_name]
-        mapping = (
-            ("host", "POSTGRES_HOST"),
-            ("port", "POSTGRES_PORT"),
-            ("database", "POSTGRES_DB"),
-            ("dbname", "POSTGRES_DB"),
-            ("user", "POSTGRES_USER"),
-            ("username", "POSTGRES_USER"),
-            ("password", "POSTGRES_PASSWORD"),
-        )
         for src, dst in mapping:
             if src in pg:
                 os.environ[dst] = str(pg[src])
-        break
 
     for key in (
         "POSTGRES_HOST",
@@ -74,9 +77,24 @@ def _copy_streamlit_secrets_to_environ(sec: object) -> None:
         "POSTGRES_DB",
         "POSTGRES_USER",
         "POSTGRES_PASSWORD",
+        "POSTGRES_SSLMODE",
     ):
         if key in sec:
             os.environ[key] = str(sec[key])
+
+    # Any other top-level POSTGRES_* (e.g. POSTGRES_OPTIONS) — copy string/number values
+    try:
+        for key in sec:
+            ks = str(key)
+            if ks in _PG_BLOCK_NAMES or ks in ("DATABASE_URL", "POSTGRES_URL"):
+                continue
+            if not ks.startswith("POSTGRES_"):
+                continue
+            val = sec[key]
+            if isinstance(val, (str, int, float)):
+                os.environ[ks] = str(val)
+    except Exception:
+        pass
 
 
 _apply_streamlit_secrets()
@@ -86,12 +104,25 @@ def _db_troubleshoot_hint() -> str:
     host = os.getenv("POSTGRES_HOST", "localhost")
     if host in ("localhost", "127.0.0.1", "::1"):
         return (
-            "On **Streamlit Community Cloud**, `localhost` is the app container, not your PC. "
-            "Use a **hosted** Postgres (Neon, Supabase, RDS, …) and set secrets: "
-            "`POSTGRES_HOST` (hostname), `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, "
-            "`POSTGRES_PASSWORD`, or a single `DATABASE_URL`. "
-            "Also ensure this app calls `_apply_streamlit_secrets()` **before** importing "
-            "`get_engine` (see `streamlit_app/app.py`)."
+            "On **Streamlit Community Cloud**, the app cannot reach Postgres on `localhost`. "
+            "Use a hosted database (e.g. **Neon**) and add **Secrets** for this app:\n\n"
+            "1. Open [share.streamlit.io](https://share.streamlit.io) → your app → **⋮** → **Settings** → **Secrets**.\n"
+            "2. Paste **one** of the following (from Neon **Connection details**), then **Save**. "
+            "The app will restart.\n\n"
+            "**Option A — single URL (simplest):**\n"
+            "```\n"
+            "DATABASE_URL = \"postgresql://USER:PASSWORD@ep-xxxxx.region.aws.neon.tech/neondb?sslmode=require\"\n"
+            "```\n\n"
+            "**Option B — separate fields:**\n"
+            "```\n"
+            "POSTGRES_HOST = \"ep-xxxxx.region.aws.neon.tech\"\n"
+            "POSTGRES_PORT = \"5432\"\n"
+            "POSTGRES_DB = \"neondb\"\n"
+            "POSTGRES_USER = \"YOUR_USER\"\n"
+            "POSTGRES_PASSWORD = \"YOUR_PASSWORD\"\n"
+            "```\n\n"
+            "Use the **pooler** hostname from Neon if you use connection pooling. "
+            "See `.streamlit/secrets.toml.example` in the repo for a copy-paste template."
         )
     return "Make sure PostgreSQL is running: `docker compose up -d`"
 

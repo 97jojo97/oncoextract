@@ -9,12 +9,30 @@ from sqlalchemy.engine import Engine, URL, make_url
 load_dotenv()
 
 
+def _postgres_host_for_ssl() -> str:
+    """Host used to decide sslmode (Streamlit Cloud often sets only DATABASE_URL)."""
+    host = (os.getenv("POSTGRES_HOST") or "").strip().lower()
+    if host:
+        return host
+    for key in ("DATABASE_URL", "POSTGRES_URL"):
+        raw = os.getenv(key)
+        if not raw:
+            continue
+        try:
+            h = (make_url(raw).host or "").strip().lower()
+        except Exception:
+            continue
+        if h:
+            return h
+    return "localhost"
+
+
 def postgres_sslmode() -> str:
     """psycopg2 sslmode. Neon/RDS require TLS; local Docker Postgres usually has no SSL."""
     override = os.getenv("POSTGRES_SSLMODE", "").strip()
     if override:
         return override
-    host = (os.getenv("POSTGRES_HOST") or "localhost").lower().strip()
+    host = _postgres_host_for_ssl()
     if host in ("localhost", "127.0.0.1", "::1"):
         return "disable"
     return "require"
