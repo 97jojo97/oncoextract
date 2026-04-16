@@ -2,11 +2,19 @@
 
 ## The Problem
 
-In oncology drug development, clinical teams must manually review thousands of medical research papers to extract key data points -- cancer stage, treatment type, biomarkers tested, patient count. A single reviewer typically spends **8-10 minutes per abstract**, and with thousands of new publications each year, this manual process becomes a major bottleneck that slows down drug development timelines.
+In oncology drug development, clinical teams must manually review thousands of medical research papers to extract key data points: cancer stage, treatment type, biomarkers tested, patient count. A single reviewer typically spends **8-10 minutes per abstract**, and with thousands of new publications each year, this manual process becomes a major bottleneck that slows down drug development timelines.
 
 ## The Solution
 
-OncoExtract automates clinical variable extraction from oncology literature. The pipeline ingests ~5,000 nasopharyngeal carcinoma (NPC) abstracts from PubMed, uses AI to extract structured variables (TNM stage, treatment modality, biomarkers, sample size), and presents the results in a human-in-the-loop (HITL) review interface where a clinician can approve or correct each extraction in seconds instead of minutes -- reducing manual review workload by an estimated **95%**.
+OncoExtract automates clinical variable extraction from oncology literature. The pipeline ingests ~5,000 nasopharyngeal carcinoma (NPC) abstracts from PubMed, uses AI to extract structured variables (TNM stage, treatment modality, biomarkers, sample size), and presents the results in a human-in-the-loop (HITL) review interface where a clinician can approve or correct each extraction in seconds instead of minutes. That cuts manual review workload by an estimated **95%**.
+
+## How this works (plain overview)
+
+**Pipeline.** Papers come from **PubMed** for the configured search (default: nasopharyngeal carcinoma). Raw rows go to **Postgres**; optional copy to **S3**. **PySpark** cleans text and writes **cleaned_abstracts**. **BioGPT** fills TNM stage, treatments, biomarkers, sample size, and cancer type; regex rules can fill gaps. A second pass writes short text notes from those fields. **dbt** builds tables for reporting on top of Postgres. **Dagster** can run the chain in order, or you run each step yourself.
+
+**Review app (Streamlit).** **Review Queue:** open each paper, edit fields, then Approve, Reject, or Skip. **Dashboard:** totals, verified count, average confidence. **Evaluation:** for reviewed items, compares first AI output to the saved human edit by field. The first model run and the approved row are stored separately.
+
+**Who runs what.** Reviewers use the web UI only. Engineers run or schedule jobs and manage Postgres (and optional S3, Spark in Docker). Analysts may use dbt outputs or the Evaluation tab.
 
 ## Architecture
 
@@ -83,7 +91,7 @@ The first model output is stored in `original_extracted_json`; after a reviewer 
 ### Prerequisites
 
 - Python 3.10+
-- Docker (for PostgreSQL + Spark -- no local Java required)
+- Docker (for PostgreSQL + Spark; no local Java required)
 - [uv](https://docs.astral.sh/uv/) package manager
 
 ### Setup
@@ -184,7 +192,7 @@ cp .env.example .env
 
 ### PySpark via Docker
 
-PySpark runs inside an `apache/spark:3.5.6-python3` container -- no local
+PySpark runs inside an `apache/spark:3.5.6-python3` container; no local
 Java or Hadoop installation required. The Spark master UI is available at
 `http://localhost:8080` when the stack is running.
 
