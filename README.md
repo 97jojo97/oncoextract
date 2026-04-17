@@ -82,6 +82,18 @@ In production, the same components map cleanly to managed services:
 
 The PySpark job does not depend on Hadoop on the laptop: it reads/writes **Postgres over JDBC**. Packaging that job as a **spark-submit** step on EMR or a **Databricks job** is the standard scale-up path; only cluster config and JDBC secrets change.
 
+## Limitations and next steps
+
+**Scope.** This project targets **research abstracts** (PubMed), not full patient records. It is a **research and workflow** tool, not a regulated clinical decision support system.
+
+**Compliance and privacy.** Do not put **PHI** in this stack without a full security and compliance review (encryption, access control, audit logging, BAA or local equivalent). PubMed content is public literature; your own deployments may add sensitive data—treat Postgres and S3 accordingly.
+
+**Model behavior.** BioGPT and rule fallbacks can **drift** as literature language changes. Re-run **HITL evaluation** on new samples, track field-level agreement over time, and version models or prompts when metrics drop.
+
+**Cost and ops.** GPU inference, Spark clusters, and large transformer loads have **latency and cost** implications; production sizing should be measured on real batch sizes and SLAs.
+
+**Next steps** that would harden a production path: automated **smoke tests** after deploy, **secret scanning** in CI, pinned **container images**, and a short **runbook** for Dagster failures and Spark job retries.
+
 ## HITL evaluation
 
 The first model output is stored in `original_extracted_json`; after a reviewer approves (with or without edits), `extracted_json` holds the human-reviewed truth. The Streamlit **Evaluation** tab shows **field-level agreement rates** (AI vs human) for verified rows. Run `scripts/migrate_001_original_extracted_json.sql` once if your database was created before that column existed.
@@ -98,7 +110,7 @@ The first model output is stored in `original_extracted_json`; after a reviewer 
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-username/oncoextract.git
+git clone https://github.com/97jojo97/oncoextract.git
 cd oncoextract
 
 # Start PostgreSQL + Spark (multi-container stack)
@@ -165,11 +177,12 @@ oncoextract/
 │
 ├── streamlit_app/app.py        # HITL review interface
 │
-└── tests/                      # 32 unit tests
+└── tests/                      # 35 unit tests (PySpark tests require deps from uv sync)
     ├── test_ingest.py           # XML parsing tests
     ├── test_spark.py            # Text normalization tests
     ├── test_extract.py          # Extraction logic tests
-    └── test_summarize.py        # Summarization + metrics tests
+    ├── test_summarize.py        # Summarization + metrics tests
+    └── test_hitl_metrics.py     # HITL field agreement metrics
 ```
 
 ## Database Schema
@@ -206,6 +219,11 @@ docker compose exec spark bash /app/spark-entrypoint.sh
 
 When triggered via Dagster, the Spark job is automatically submitted to
 the Docker container.
+
+## Dependency layout
+
+- **`pyproject.toml` / `uv.lock`:** canonical dependencies for local development and CI (`uv sync --all-extras`).
+- **`requirements.txt`:** minimal subset for [Streamlit Community Cloud](https://streamlit.io/cloud) (UI + DB helpers only); the full pipeline still uses `uv` locally.
 
 ## License
 

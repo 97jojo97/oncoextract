@@ -106,7 +106,8 @@ def _db_troubleshoot_hint() -> str:
         return (
             "On **Streamlit Community Cloud**, the app cannot reach Postgres on `localhost`. "
             "Use a hosted database (e.g. **Neon**) and add **Secrets** for this app:\n\n"
-            "1. Open [share.streamlit.io](https://share.streamlit.io) → your app → **⋮** → **Settings** → **Secrets**.\n"
+            "1. Open [share.streamlit.io](https://share.streamlit.io) → your app → **⋮** → "
+            "**Settings** → **Secrets**.\n"
             "2. Paste **one** of the following (from Neon **Connection details**), then **Save**. "
             "The app will restart.\n\n"
             "**Option A — single URL (simplest):**\n"
@@ -129,7 +130,11 @@ def _db_troubleshoot_hint() -> str:
 
 from sqlalchemy import text  # noqa: E402
 
-from oncoextract.ai.hitl_metrics import aggregate_field_accuracy, field_agreement, parse_jsonb  # noqa: E402
+from oncoextract.ai.hitl_metrics import (  # noqa: E402
+    aggregate_field_accuracy,
+    field_agreement,
+    parse_jsonb,
+)
 from oncoextract.db.models import get_engine  # noqa: E402
 
 engine = get_engine()
